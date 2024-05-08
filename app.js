@@ -19,8 +19,8 @@ class Circle {
         this.text = text;
         this.speed = speed;
 
-        this.dx = 1 * this.speed;
-        this.dy = 1 * this.speed;
+        this.dx = Math.random() * speed * (Math.random() < 0.5 ? -1 : 1); // Velocidad aleatoria en dirección X
+        this.dy = Math.random() * speed * (Math.random() < 0.5 ? -1 : 1); // Velocidad aleatoria en dirección Y
     }
 
     draw(context) {
@@ -38,27 +38,59 @@ class Circle {
         context.closePath();
     }
 
-    update(context) {
-        this.draw(context);
+    update(context, circles) {
+        let isColliding = false;
 
-        if ((this.posX + this.radius) > window_width) {
-            this.dx = -this.dx;
+        // Detección de colisiones con otros círculos
+        for (let circle of circles) {
+            if (circle !== this) {
+                let distance = getDistance(this.posX, circle.posX, this.posY, circle.posY);
+                if (distance < (this.radius + circle.radius)) {
+                    // Si hay colisión, el círculo más pequeño rebota
+                    let smallerCircle = (this.radius < circle.radius) ? this : circle;
+                    let largerCircle = (this.radius < circle.radius) ? circle : this;
+
+                    // Se calcula el ángulo de rebote
+                    let angle = Math.atan2(smallerCircle.posY - largerCircle.posY, smallerCircle.posX - largerCircle.posX);
+
+                    // Se calcula la nueva velocidad del círculo más pequeño
+                    let newDX = Math.cos(angle) * smallerCircle.speed;
+                    let newDY = Math.sin(angle) * smallerCircle.speed;
+
+                    // Se actualiza la velocidad del círculo más pequeño
+                    smallerCircle.dx = newDX;
+                    smallerCircle.dy = newDY;
+
+                    // Se indica que hubo una colisión
+                    isColliding = true;
+                }
+            }
         }
 
-        if ((this.posX - this.radius) < 0) {
-            this.dx = -this.dx;
+        // Actualiza la posición teniendo en cuenta el rebote en los bordes
+        if ((this.posX + this.radius + this.dx) > window_width || (this.posX - this.radius + this.dx) < 0) {
+            this.dx = -this.dx; // Cambiar dirección en X si toca los bordes horizontales
+            isColliding = true; // Indica que hubo una colisión con los bordes
         }
 
-        if ((this.posY - this.radius) < 0) {
-            this.dy = -this.dy;
+        if ((this.posY - this.radius + this.dy) < 0 || (this.posY + this.radius + this.dy) > window_height) {
+            this.dy = -this.dy; // Cambiar dirección en Y si toca los bordes verticales
+            isColliding = true; // Indica que hubo una colisión con los bordes
         }
 
-        if ((this.posY + this.radius) > window_height) {
-            this.dy = -this.dy;
-        }
-
+        // Actualiza la posición
         this.posX += this.dx;
         this.posY += this.dy;
+
+        // Asegura que los círculos no salgan de la pantalla
+        this.posX = Math.max(this.radius, Math.min(this.posX, window_width - this.radius));
+        this.posY = Math.max(this.radius, Math.min(this.posY, window_height - this.radius));
+
+        // Cambia el color dependiendo de si hubo colisión o no
+        this.color = isColliding ? "red" : "blue";
+
+        // Dibuja el círculo
+        this.draw(context);
     }
 }
 
@@ -72,33 +104,15 @@ let circles = [];
 for (let i = 0; i < 10; i++) {
     let randomX = Math.random() * window_width;
     let randomY = Math.random() * window_height;
-    let randomRadius = 25;
+    let randomRadius = Math.floor(Math.random() * 100 + 15);
     let randomSpeed = 5;
     circles.push(new Circle(randomX, randomY, randomRadius, "blue", (i + 1).toString(), randomSpeed));
 }
 
-circles.forEach(circle => circle.draw(ctx));
-
 let updateCircles = function () {
     requestAnimationFrame(updateCircles);
     ctx.clearRect(0, 0, window_width, window_height);
-    circles.forEach(circle => circle.update(ctx));
-
-    for (let i = 0; i < circles.length; i++) {
-        for (let j = i + 1; j < circles.length; j++) {
-            if (getDistance(circles[i].posX, circles[j].posX, circles[i].posY, circles[j].posY) < circles[i].radius + circles[j].radius) {
-                circles[i].dx = -circles[i].dx;
-                circles[i].dy = circles[i].dy;
-                circles[j].dx = -circles[j].dx;
-                circles[j].dy = circles[j].dy;
-                circles[i].color = "red";
-                circles[j].color = "red";
-            } else {
-                circles[i].color = "blue";
-                circles[j].color = "blue";
-            }
-        }
-    }
+    circles.forEach(circle => circle.update(ctx, circles));
 };
 
 updateCircles();
